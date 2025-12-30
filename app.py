@@ -1161,9 +1161,8 @@ class DataApp:
             layout="centered",
             initial_sidebar_state="expanded",
             menu_items={
-                'Get Help': 'https://github.com/ahammadnafiz/Analyzia',
+                'Get Help': 'dsmith4@opwntext.com',
                 'Report a bug': 'https://github.com/ahammadnafiz/Analyzia/issues',
-                'About': "Analyzia - AI-Powered Data Analysis Platform"
             }
         )
         
