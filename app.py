@@ -1282,10 +1282,10 @@ class DataApp:
                 self.analysis_agent.setup_agent(self.file_path)
         
         # Main content area - always show chat interface with title
-        # Always show the Analyzia title at the top center
+        # Always show the Prompt Python title at the top center
         st.markdown("""
         <div style="text-align: center; padding: 1rem 0 2rem 0;">
-            <h1 style="margin-bottom: 0.5rem; font-size: 3rem; font-weight: bold;">Analyzia</h1>
+            <h1 style="margin-bottom: 0.5rem; font-size: 3rem; font-weight: bold;">Prompt Python</h1>
             <p style="color: #666; font-size: 1.1rem; margin: 0;">
                 AI-Powered Data Analysis Platform
             </p>
