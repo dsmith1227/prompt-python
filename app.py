@@ -1159,7 +1159,6 @@ class DataApp:
             page_title="Prompt Python - AI Data Analysis",
             layout="centered",
             initial_sidebar_state="expanded",
-            }
         )
         
         # Hide Streamlit default elements for cleaner look while preserving functionality
