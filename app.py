@@ -1156,13 +1156,13 @@ class DataApp:
         """Run the main application"""
         # Configure Streamlit page
         st.set_page_config(
-            page_title="Analyzia - AI Data Analysis",
-            page_icon="🤖", 
+            page_title="Prompt Python - AI Data Analysis",
+            page_icon="", 
             layout="centered",
             initial_sidebar_state="expanded",
             menu_items={
                 'Get Help': 'dsmith4@opwntext.com',
-                'Report a bug': 'https://github.com/ahammadnafiz/Analyzia/issues',
+                'Report a bug': 'dsmith4@opentext.com',
             }
         )
         
