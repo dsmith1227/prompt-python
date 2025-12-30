@@ -1245,7 +1245,7 @@ class DataApp:
             </style>
             """, unsafe_allow_html=True)
             
-            st.markdown("# 🤖 Analyzia")
+            st.markdown("Prompt Python")
             st.markdown("*AI-Powered Data Analysis*")
             st.markdown("---")
             
