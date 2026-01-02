@@ -7,8 +7,6 @@ import re
 from tempfile import NamedTemporaryFile
 import matplotlib.pyplot as plt
 import numpy as np
-import boto3
-from botocore.exceptions import ClientError, NoCredentialsError
 
 # LangChain Imports
 from langchain_experimental.agents import create_csv_agent
@@ -23,12 +21,9 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Get API keys and AWS credentials from environment
+# Get Google API key from environment
 import os
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-AWS_REGION = os.getenv('AWS_REGION', 'us-east-1')
 
 class CodeUtils:
     """Utility class for code extraction and execution"""
@@ -1130,58 +1125,18 @@ class DataApp:
         self.response_processor = None
         self.analysis_agent = None
 
-    def download_from_s3(self, bucket_name, object_key, aws_access_key, aws_secret_key, aws_region):
-        """Download CSV file from S3 bucket and return local file path."""
-        try:
-            # Create S3 client with credentials
-            s3_client = boto3.client(
-                's3',
-                aws_access_key_id=aws_access_key,
-                aws_secret_access_key=aws_secret_key,
-                region_name=aws_region
-            )
-
-            # Create temporary file to store downloaded CSV
-            with NamedTemporaryFile(delete=False, suffix='.csv') as tmp_file:
-                temp_file_path = tmp_file.name
-
-                # Download file from S3
-                s3_client.download_file(bucket_name, object_key, temp_file_path)
-
-                return temp_file_path
-
-        except NoCredentialsError:
-            st.error("AWS credentials not found or invalid.")
-            return None
-        except ClientError as e:
-            error_code = e.response['Error']['Code']
-            if error_code == 'NoSuchBucket':
-                st.error(f"Bucket '{bucket_name}' does not exist.")
-            elif error_code == 'NoSuchKey':
-                st.error(f"Object '{object_key}' not found in bucket '{bucket_name}'.")
-            elif error_code == '403':
-                st.error("Access denied. Check your AWS credentials and bucket permissions.")
-            else:
-                st.error(f"AWS Error: {str(e)}")
-            return None
-        except Exception as e:
-            st.error(f"Error downloading from S3: {str(e)}")
-            return None
-
-    def process_s3_file(self, bucket_name, object_key, aws_access_key, aws_secret_key, aws_region, google_api_key=None):
-        """Process a CSV file from S3 and return dataframe."""
-        with st.spinner("Downloading dataset from S3..."):
-            # Download file from S3
-            self.file_path = self.download_from_s3(bucket_name, object_key, aws_access_key, aws_secret_key, aws_region)
-
-            if self.file_path is None:
-                return None
-
+    def process_uploaded_file(self, file, google_api_key=None):
+        """Process the uploaded CSV file and return dataframe and file path."""
+        with st.spinner("Loading dataset..."):
             try:
+                # Create temporary file
+                with NamedTemporaryFile(delete=False) as f:
+                    f.write(file.getbuffer())
+                    self.file_path = f.name
+
                 # Load dataframe with error handling
                 try:
                     self.df = pd.read_csv(self.file_path)
-                    st.success(f"Successfully loaded dataset from S3: {bucket_name}/{object_key}")
                 except Exception as e:
                     st.error(f"Error reading CSV file: {str(e)}")
                     st.info("Make sure your file is a valid CSV with proper formatting.")
@@ -1291,63 +1246,28 @@ class DataApp:
             # API Key section
             st.markdown("### API Configuration")
             if GOOGLE_API_KEY:
-                st.success("✓ Google API Key configured")
+                st.success("API Key configured")
                 google_api_key = GOOGLE_API_KEY
             else:
                 google_api_key = st.text_input("Google API Key", type="password", placeholder="Enter your API key...")
 
             st.markdown("---")
 
-            # AWS Configuration section
-            st.markdown("### AWS Configuration")
-
-            # AWS Credentials
-            if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
-                st.success("✓ AWS credentials configured")
-                aws_access_key = AWS_ACCESS_KEY_ID
-                aws_secret_key = AWS_SECRET_ACCESS_KEY
-            else:
-                aws_access_key = st.text_input("AWS Access Key ID", type="password", placeholder="Enter AWS Access Key...")
-                aws_secret_key = st.text_input("AWS Secret Access Key", type="password", placeholder="Enter AWS Secret Key...")
-
-            # AWS Region
-            if AWS_REGION:
-                aws_region = st.text_input("AWS Region", value=AWS_REGION, placeholder="e.g., us-east-1")
-            else:
-                aws_region = st.text_input("AWS Region", value="us-east-1", placeholder="e.g., us-east-1")
-
-            st.markdown("---")
-
-            # S3 File Configuration section
-            st.markdown("### S3 Data Source")
-            s3_bucket = st.text_input("S3 Bucket Name", placeholder="e.g., my-data-bucket")
-            s3_key = st.text_input("S3 Object Key", placeholder="e.g., data/myfile.csv")
-
-            load_button = st.button("Load Data from S3", type="primary", use_container_width=True)
+            # File upload section
+            st.markdown("### Data Upload")
+            uploaded_file = st.file_uploader("Choose CSV file", type=["csv"], label_visibility="collapsed")
         
         # Initialize or reset session state if needed
         if 'messages' not in st.session_state:
             st.session_state.messages = []
 
-        # Process file from S3 when button is clicked
-        if load_button:
-            if not s3_bucket or not s3_key:
-                st.error("Please provide both S3 bucket name and object key.")
-            elif not aws_access_key or not aws_secret_key:
-                st.error("Please provide AWS credentials.")
-            elif not google_api_key:
-                st.error("Please provide Google API key.")
-            else:
-                # Create unique identifier for this S3 file
-                s3_file_id = f"{s3_bucket}/{s3_key}"
+        # Process file if uploaded
+        if uploaded_file and (self.df is None or uploaded_file.name != getattr(st.session_state, 'last_file', None)):
+            self.process_uploaded_file(uploaded_file, google_api_key)
+            st.session_state.last_file = uploaded_file.name if self.df is not None else None
 
-                # Process S3 file if it's different from the last one loaded
-                if self.df is None or s3_file_id != getattr(st.session_state, 'last_s3_file', None):
-                    self.process_s3_file(s3_bucket, s3_key, aws_access_key, aws_secret_key, aws_region, google_api_key)
-                    st.session_state.last_s3_file = s3_file_id if self.df is not None else None
-
-                    # Reset chat history when new file is loaded
-                    st.session_state.messages = []
+            # Reset chat history when new file is uploaded
+            st.session_state.messages = []
 
         # Setup agent if conditions are met
         if self.df is not None and google_api_key:
@@ -1372,20 +1292,20 @@ class DataApp:
             DataFrameUtils.display_dataframe_info(self.df)
         
         # Display status information if setup is incomplete
-        if self.df is None and not google_api_key:
+        if not uploaded_file and not google_api_key:
             # Welcome screen when nothing is set up
             st.markdown("""
             <div style="text-align: center; padding: 1rem 0;">
                 <p style="color: #0066cc; background-color: #e6f3ff; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #0066cc; margin: 0 auto; max-width: 600px;">
-                👈 Get started by configuring AWS S3 settings and API credentials in the sidebar
+                👈 Get started by uploading a file and entering your API key in the sidebar
                 </p>
             </div>
             """, unsafe_allow_html=True)
-        elif self.df is None:
+        elif not uploaded_file:
             st.markdown("""
             <div style="text-align: center; padding: 1rem 0;">
                 <p style="color: #0066cc; background-color: #e6f3ff; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #0066cc; margin: 0 auto; max-width: 600px;">
-                    📦 Please provide S3 bucket and object key, then click "Load Data from S3" in the sidebar.
+                    📁 Please upload a CSV file in the sidebar to get started.
                 </p>
             </div>
             """, unsafe_allow_html=True)
@@ -1419,20 +1339,18 @@ class DataApp:
             # Display assistant response with validation
             with st.chat_message("assistant"):
                 # Check if setup is complete
-                if self.df is None:
+                if not uploaded_file:
                     response = """
 🚫 **No Dataset Found**
 
-I'd love to help you analyze your data, but I don't see any dataset loaded yet.
+I'd love to help you analyze your data, but I don't see any dataset uploaded yet.
 
 **To get started:**
-1. 📦 Configure AWS credentials in the sidebar
-2. 📁 Enter S3 bucket name and object key
-3. 🔘 Click "Load Data from S3"
-4. 🔑 Enter your Google API key
-5. 🚀 Ask your question again
+1. 📁 Upload a CSV file using the sidebar
+2. 🔑 Enter your Google API key in the sidebar
+3. 🚀 Ask your question again
 
-Once you've loaded your data from S3, I can help you with:
+Once you've uploaded your data, I can help you with:
 - Data exploration and summaries
 - Statistical analysis and correlations
 - Beautiful visualizations and charts
@@ -1468,16 +1386,11 @@ Your data is ready - I just need the API key to start the analysis!
 There seems to be an issue with the analysis setup. Please try:
 
 1. 🔄 Refresh the page
-2. 📦 Verify your AWS credentials and S3 settings
-3. 🔘 Reload data from S3
-4. 🔑 Re-enter your API key
-5. 🚀 Ask your question again
+2. 📁 Re-upload your CSV file
+3. 🔑 Re-enter your API key
+4. 🚀 Ask your question again
 
-If the problem persists, please check:
-- Your API key is valid
-- Your AWS credentials have S3 read permissions
-- Your S3 bucket and object key are correct
-- Your CSV file is properly formatted
+If the problem persists, please check that your API key is valid and your CSV file is properly formatted.
                     """
                     st.markdown(response)
                     st.session_state.messages.append({"role": "assistant", "content": response})

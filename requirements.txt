@@ -11,4 +11,3 @@ langchain-community==0.0.13
 langchain-google-genai==0.0.11
 python-dotenv
 tabulate
-boto3
